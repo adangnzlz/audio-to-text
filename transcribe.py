@@ -16,7 +16,9 @@ def transcribe_audio(audio_filename, language=DEFAULT_LANGUAGE, prompt=None):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     audio_file_path = os.path.join(AUDIO_DIR, audio_filename)
-    transcription_filename = os.path.splitext(audio_filename)[0] + ".txt"
+    # Output will have the same name as the input audio, but with .txt extension, always in outputs/
+    base_name = os.path.splitext(os.path.basename(audio_filename))[0]
+    transcription_filename = base_name + ".txt"
     transcription_path = os.path.join(OUTPUT_DIR, transcription_filename)
 
     if not os.path.exists(audio_file_path):

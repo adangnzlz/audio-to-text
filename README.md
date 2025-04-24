@@ -6,8 +6,7 @@ A simple CLI tool to transcribe audio files using the OpenAI Whisper API.
 
 ```
 whisper-transcriber/
-├── aux/
-│   └── transcribe.py
+├── transcribe.py     # Main transcription script
 ├── config.py         # Project configuration
 ├── audios/           # Folder for audio files (not tracked by git)
 ├── outputs/          # Folder for transcription outputs (not tracked by git)
@@ -39,7 +38,7 @@ OPENAI_API_KEY=sk-...your-api-key...
 From the root of the project:
 
 ```bash
-python aux/transcribe.py <audio_filename> [--language en|es] [--prompt "Optional custom prompt text"]
+python transcribe.py <audio_filename> [--language en|es] [--prompt "Optional custom prompt text"]
 ```
 
 - `<audio_filename>`: The name of the audio file inside the `audios/` folder (e.g. `my_audio.m4a`)
@@ -49,7 +48,7 @@ python aux/transcribe.py <audio_filename> [--language en|es] [--prompt "Optional
 Example:
 
 ```bash
-python aux/transcribe.py my_audio.m4a --language es
+python transcribe.py my_audio.m4a --language es
 ```
 
 The transcription will be automatically saved in the `outputs/` folder with the same base name and `.txt` extension.
@@ -60,4 +59,4 @@ The transcription will be automatically saved in the `outputs/` folder with the 
 
 ---
 
-**Comments and PRs welcome!**
+**Comments welcome!**
