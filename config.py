@@ -3,8 +3,8 @@ import os
 
 load_dotenv()
 
-AUDIO_DIR = "audios"
-OUTPUT_DIR = "outputs"
+AUDIO_DIR = "./"
+OUTPUT_DIR = "./outputs"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Default parameters for transcription
