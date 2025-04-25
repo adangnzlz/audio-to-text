@@ -47,6 +47,25 @@ OPENAI_API_KEY=sk-...your-api-key...
 
 From the root of the project:
 
+### Using ElevenLabs Scribe
+
+To use the ElevenLabs Scribe provider for transcription with speaker diarization:
+
+1. Set `AUDIO_TO_TEXT_PROVIDER = "elevenlabs_scribe"` in your `config.py`.
+2. Add your ElevenLabs API key to your `.env` file:
+   ```
+   ELEVENLABS_API_KEY=your-elevenlabs-api-key
+   ```
+3. Place your audio files in the `audios/` folder.
+4. Run the transcription command:
+   ```bash
+   python3 transcribe.py audios/your_audio_file.m4a --language es --num-speakers 2
+   ```
+   - The `--num-speakers` argument is optional and controls the number of speakers for diarization.
+   - The output will include speaker labels as `speaker_1`, `speaker_2`, etc., local to each audio part.
+
+The ElevenLabs Scribe provider supports automatic splitting of large audio files and generates clear diarized transcripts per fragment.
+
 ```bash
 python transcribe.py <audio_filename> [--language en|es] [--prompt "Optional custom prompt text"]
 ```
