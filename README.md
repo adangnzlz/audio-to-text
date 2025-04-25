@@ -1,6 +1,16 @@
 # Whisper Transcriber
 
-A simple CLI tool to transcribe audio files using the OpenAI Whisper API.
+A powerful and extensible CLI tool to transcribe audio files using either the OpenAI Whisper API or ElevenLabs Scribe API. 
+
+Features include:
+- Support for multiple audio-to-text providers (Whisper and ElevenLabs Scribe), configurable in `config.py`.
+- Automatic splitting of large audio files for seamless transcription, using ffmpeg.
+- Speaker diarization (speaker identification and separation) when using ElevenLabs Scribe, with configurable number of speakers.
+- Customizable transcription prompts and parameters per provider and per language.
+- Outputs transcriptions and speaker mapping files for reproducibility.
+- All settings, API keys, and parameters are managed in `config.py` for easy customization.
+- Designed to be easily extended with new providers.
+
 
 ## Project Structure
 
@@ -8,7 +18,7 @@ A simple CLI tool to transcribe audio files using the OpenAI Whisper API.
 whisper-transcriber/
 ├── transcribe.py     # Main transcription script
 ├── config.py         # Project configuration
-├── audios/           # Folder for audio files (not tracked by git)
+├── providers.py      # Provider management
 ├── outputs/          # Folder for transcription outputs (not tracked by git)
 ├── .env              # Environment variables (your API KEY here, not tracked by git)
 ├── .gitignore

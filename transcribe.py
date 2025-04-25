@@ -1,19 +1,10 @@
-from openai import OpenAI, OpenAIError
 import os
-import sys
-from config import (
-    AUDIO_DIR, OUTPUT_DIR, OPENAI_API_KEY, DEFAULT_LANGUAGE, DEFAULT_PROMPT,
-    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_RESPONSE_FORMAT
-)
-from pydub import AudioSegment
-import math
+import subprocess
+from config import AUDIO_DIR, OUTPUT_DIR, AUDIO_TO_TEXT_PROVIDER, MAX_MB
 
 def get_file_size(file_path):
     size_bytes = os.path.getsize(file_path)
     return round(size_bytes / (1024 * 1024), 2)
-
-
-import subprocess
 
 def split_audio_if_needed(audio_file_path, max_mb=5):
     """
@@ -23,6 +14,7 @@ def split_audio_if_needed(audio_file_path, max_mb=5):
     """
     size_mb = get_file_size(audio_file_path)
     if size_mb <= max_mb:
+        # No splitting needed, do not create any split_dir
         return [(audio_file_path, 1)]
 
     print(f"Audio file is {size_mb} MB, splitting into parts of <= {max_mb} MB...")
@@ -63,19 +55,22 @@ def split_audio_if_needed(audio_file_path, max_mb=5):
 
 
 
-def transcribe_audio(audio_filename, language=DEFAULT_LANGUAGE, prompt=None):
-    """ Transcribe the audio file, splitting if needed. """
+import difflib
+import json
+
+def transcribe_audio(audio_filename, language=None, prompt=None, num_speakers=2):
+    """
+    Transcribe the audio file, splitting if needed. Uses the provider configured in config.py.
+    """
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        from providers import get_audio_to_text_provider
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
         audio_file_path = os.path.join(AUDIO_DIR, audio_filename)
         base_name = os.path.splitext(os.path.basename(audio_filename))[0]
-        # Create subdirectories for split audio and output
-        split_dir = os.path.join(AUDIO_DIR, base_name)
+        split_dir = os.path.join(AUDIO_DIR, base_name)  # For temp split files
         output_dir = os.path.join(OUTPUT_DIR, base_name)
-        os.makedirs(split_dir, exist_ok=True)
+        # Only create split_dir if splitting is needed (handled inside split_audio_if_needed)
         os.makedirs(output_dir, exist_ok=True)
 
         if not os.path.exists(audio_file_path):
@@ -83,62 +78,63 @@ def transcribe_audio(audio_filename, language=DEFAULT_LANGUAGE, prompt=None):
             return
 
         # Split audio if needed (will save in split_dir)
-        audio_parts = split_audio_if_needed(audio_file_path, max_mb=5)
+        audio_parts = split_audio_if_needed(audio_file_path, max_mb=MAX_MB)
         multiple_parts = len(audio_parts) > 1
 
-        for part_path, idx in audio_parts:
-            if multiple_parts:
-                transcription_filename = f"{base_name}_part{idx}.txt"
-            else:
-                transcription_filename = f"{base_name}.txt"
-            transcription_path = os.path.join(output_dir, transcription_filename)
+        provider = get_audio_to_text_provider()
+        print(f"[INFO] Using provider: {AUDIO_TO_TEXT_PROVIDER}")
 
-            if os.path.exists(transcription_path):
-                print(f"Warning: '{transcription_path}' exists! Overwrite? (yes/no): ", end="")
-                response = input()
-                if response.lower() != 'yes':
-                    print("Skipped.")
-                    if multiple_parts:
-                        os.remove(part_path)
-                    continue
-
+        for idx, (part_path, part_idx) in enumerate(audio_parts, 1):
             print(f"Processing part {idx}: {part_path} ({get_file_size(part_path)} MB)")
 
             try:
-                with open(part_path, "rb") as audio_file:
-                    transcription = client.audio.transcriptions.create(
-                        model=DEFAULT_MODEL,
-                        file=audio_file,
-                        language=language,
-                        response_format=DEFAULT_RESPONSE_FORMAT,
-                        temperature=DEFAULT_TEMPERATURE,
-                        prompt=prompt or DEFAULT_PROMPT.get(language, "")
-                    )
-
-                transcription_text = getattr(transcription, 'text', transcription) if not isinstance(transcription, str) else transcription
+                # Request transcription with speaker diarization (local speaker labeling only)
+                transcription_text = provider.transcribe(part_path, language=language, prompt=prompt, num_speakers=num_speakers, return_segments=False)
+                transcription_path = os.path.join(output_dir, f"{base_name}_part{part_idx}.txt")
                 with open(transcription_path, "w", encoding="utf-8") as f:
                     f.write(transcription_text)
                 print(f"Saved to '{transcription_path}' ({get_file_size(transcription_path)} MB)")
             except Exception as e:
                 print(f"Error transcribing part {idx}: {str(e)}")
             finally:
-                if multiple_parts:
+                if multiple_parts and os.path.exists(part_path):
                     os.remove(part_path)
+        # Clean up: remove split_dir if it exists and is empty (avoid leaving empty folders)
+        if multiple_parts and os.path.isdir(split_dir) and not os.listdir(split_dir):
+            try:
+                os.rmdir(split_dir)
+            except Exception:
+                pass
+
     except Exception as e:
         print(f"General error: {str(e)}")
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Transcribe audio files using OpenAI Whisper API.")
+    try:
+        from config import DEFAULT_LANGUAGE
+        default_language = DEFAULT_LANGUAGE
+    except (ImportError, AttributeError):
+        default_language = 'en'
+    parser = argparse.ArgumentParser(description="Transcribe audio files using the configured provider.")
     parser.add_argument("audio_filename", type=str, help="Audio file location.")
-    parser.add_argument("--language", type=str, default=DEFAULT_LANGUAGE, help="Language code (default: %(default)s)")
+    parser.add_argument("--language", type=str, default=default_language, help="Language code (default: %(default)s)")
     parser.add_argument("--prompt", type=str, default=None, help="Optional custom prompt for transcription.")
+    # Only show --num-speakers if ElevenLabs is selected
+    try:
+        from config import AUDIO_TO_TEXT_PROVIDER
+        provider = AUDIO_TO_TEXT_PROVIDER
+    except (ImportError, AttributeError):
+        provider = 'whisper'
+    if provider == "elevenlabs_scribe":
+        parser.add_argument("--num-speakers", type=int, default=2, help="Number of speakers for diarization (default: 2, ElevenLabs only)")
+    else:
+        parser.set_defaults(num_speakers=2)
 
     args = parser.parse_args()
 
-    transcribe_audio(args.audio_filename, language=args.language, prompt=args.prompt)
-
+    transcribe_audio(args.audio_filename, language=args.language, prompt=args.prompt, num_speakers=getattr(args, 'num_speakers', 2))
 
 if __name__ == "__main__":
     main()
